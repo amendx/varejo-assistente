@@ -85,13 +85,13 @@ npm run build
 
 1. **Atualizar publicPath**: Edite `webpack.config.js` com a URL real:
 ```javascript
-const publicPath = 'https://sua-url-vercel.app/'
+const publicPath = 'https://varejo-assistente-local.vercel.app/'
 ```
 
 2. **Configurar VFX Host**: Atualize o remote URL no VFX:
 ```javascript
 remotes: {
-  assistenteCompras: 'assistente_compras@https://sua-url-vercel.app/remoteEntry.js'
+  assistenteCompras: 'assistente_compras@https://varejo-assistente-local.vercel.app/remoteEntry.js'
 }
 ```
 

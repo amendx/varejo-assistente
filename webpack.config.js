@@ -1,26 +1,43 @@
-const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin')
+const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const { VueLoaderPlugin } = require('vue-loader')
+const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin')
 
 const isDev = process.env.NODE_ENV !== 'production'
-const publicPath = isDev ? 'http://localhost:8090/' : 'https://varejo-assistente-compras.vercel.app/'
+const isPreview = process.env.PREVIEW === 'true'
+const publicPath = isDev || isPreview 
+  ? 'http://localhost:8090/' 
+  : 'https://varejo-assistente-local.vercel.app/'
 
 module.exports = {
   mode: isDev ? 'development' : 'production',
   entry: './src/index.js',
+  
   output: {
-    publicPath: publicPath,
+    path: path.resolve(__dirname, 'dist'),
     filename: isDev ? '[name].js' : '[name].[contenthash].js',
+    chunkFilename: isDev ? '[name].chunk.js' : '[name].[contenthash].chunk.js',
+    publicPath: publicPath,
+    clean: true
   },
   devServer: {
     port: 8090,
     historyApiFallback: true,
+    hot: true,
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
       'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization'
     }
   },
+
+  resolve: {
+    extensions: ['.js', '.vue', '.json'],
+    alias: {
+      '@': path.resolve(__dirname, 'src')
+    }
+  },
+
   module: {
     rules: [
       {
@@ -29,10 +46,18 @@ module.exports = {
       },
       {
         test: /\.js$/,
-        loader: 'babel-loader',
         exclude: /node_modules/,
-        options: {
-          presets: ['@babel/preset-env']
+        use: {
+          loader: 'babel-loader',
+          options: {
+            presets: [
+              ['@babel/preset-env', {
+                targets: {
+                  browsers: ['> 1%', 'last 2 versions']
+                }
+              }]
+            ]
+          }
         }
       },
       {
@@ -41,22 +66,40 @@ module.exports = {
       }
     ]
   },
+
   plugins: [
     new ModuleFederationPlugin({
       name: 'assistente_compras',
       filename: 'remoteEntry.js',
       exposes: {
-        './AssistenteCompras': './src/AssistenteCompras.vue',
-        './bootstrap': './src/bootstrap.js'
+        './AssistenteCompras': './src/bootstrap.js'
       },
-      shared: []  // Vazio em standalone - cada MFE traz suas próprias deps
+      shared: {
+        vue: {
+          singleton: true,
+          eager: false,
+          requiredVersion: '^3.0.0'
+        }
+      }
     }),
     new HtmlWebpackPlugin({
-      template: './public/index.html'
+      template: './public/index.html',
+      filename: 'index.html',
+      inject: true
     }),
     new VueLoaderPlugin()
   ],
-  resolve: {
-    extensions: ['.js', '.vue']
+
+  optimization: {
+    splitChunks: {
+      chunks: 'async',
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendors',
+          chunks: 'all'
+        }
+      }
+    }
   }
 }

@@ -12,6 +12,21 @@
   ],
   "routes": [
     {
+      "src": "/remoteEntry.js",
+      "dest": "/remoteEntry.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/javascript"
+      }
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg))$",
+      "dest": "/$1",
+      "headers": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }

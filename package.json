@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "webpack serve --config webpack.config.js --mode development",
     "build": "NODE_ENV=production webpack --config webpack.config.js --mode production",
-    "preview": "npm run build && serve dist -s -p 8090",
+    "build:preview": "NODE_ENV=production PREVIEW=true webpack --config webpack.config.js --mode production",
+    "preview": "npm run build:preview && serve dist -s -p 8090",
     "vercel-build": "npm run build"
   },
   "dependencies": {
