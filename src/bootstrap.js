@@ -17,14 +17,15 @@ async function initApp() {
     // Sempre criar e montar a aplicação
     // O componente interno decide se mostra o conteúdo ou a página de forbidden
     const app = createApp(AssistenteCompras, {
-      // Props mock para desenvolvimento ou quando não há dados do VFX
-      userData: isStandalone ? {
+      // Props mock APENAS em desenvolvimento standalone
+      // Em produção standalone: não passar dados para forçar bloqueio
+      userData: (isStandalone && isDevelopment) ? {
         nome: 'Usuário Demo',
         email: 'demo@varejofacil.com',
         permissoes: ['vendas', 'estoque']
       } : null,
-      themeData: isStandalone ? 'blue' : null,
-      eventBus: isStandalone ? createMockEventBus() : null
+      themeData: (isStandalone && isDevelopment) ? 'blue' : null,
+      eventBus: (isStandalone && isDevelopment) ? createMockEventBus() : null
     })
     
     // Verificar se elemento existe
