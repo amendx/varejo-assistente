@@ -95,8 +95,8 @@ vercel --prod
 
 ### **Produção (Vercel):**
 ```
-🌐 App: https://varejo-assistente-local.vercel.app
-📡 Remote Entry: https://varejo-assistente-local.vercel.app/remoteEntry.js
+🌐 App: https://varejo-assistente.vercel.app
+📡 Remote Entry: https://varejo-assistente.vercel.app/remoteEntry.js
 ```
 
 ## 🎉 **Resultado Final**

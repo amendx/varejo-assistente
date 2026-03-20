@@ -7,7 +7,7 @@ const isDev = process.env.NODE_ENV !== 'production'
 const isPreview = process.env.PREVIEW === 'true'
 const publicPath = isDev || isPreview 
   ? 'http://localhost:8090/' 
-  : 'https://varejo-assistente-local.vercel.app/'
+  : 'https://varejo-assistente.vercel.app/'
 
 module.exports = {
   mode: isDev ? 'development' : 'production',
@@ -18,7 +18,8 @@ module.exports = {
     filename: isDev ? '[name].js' : '[name].[contenthash].js',
     chunkFilename: isDev ? '[name].chunk.js' : '[name].[contenthash].chunk.js',
     publicPath: publicPath,
-    clean: true
+    clean: true,
+    assetModuleFilename: 'assets/[name].[contenthash][ext]'
   },
   devServer: {
     port: 8090,
