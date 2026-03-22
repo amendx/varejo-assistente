@@ -73,6 +73,7 @@ module.exports = {
       name: 'assistente_compras',
       filename: 'remoteEntry.js',
       exposes: {
+        './App': './src/App.vue',  
         './AssistenteCompras': './src/bootstrap.js'
       },
       shared: {
