@@ -113,7 +113,93 @@ initApp()
 // Export para Module Federation
 export { initApp }
 
-// Export assíncrono do componente
+// 🎯 INTERFACE BOOTSTRAP PADRÃO PARA MODULE FEDERATION
+export default {
+  mount(element, props = {}) {
+    console.log('🚀 MFE Assistente Compras montando com props:', props)
+    
+    return import('vue').then(({ createApp }) => {
+      return import('./AssistenteCompras.vue').then((AssistenteComprasModule) => {
+        const AssistenteCompras = AssistenteComprasModule.default || AssistenteComprasModule
+        
+        // Criar instância Vue 3 com props do host
+        const app = createApp(AssistenteCompras, {
+          // Props mapeadas do host VFX
+          userData: props.userData || props.currentUserData,
+          themeData: props.themeData || props.temaAtual,
+          eventBus: props.eventBus || props.vfxEventBus,
+          mode: props.mode || 'production',
+          language: props.language || 'pt-BR'
+        })
+        
+        // Configurar props globais se necessário
+        if (props.eventBus) {
+          app.config.globalProperties.$hostEventBus = props.eventBus
+        }
+        
+        // Montar no elemento DOM fornecido pelo host
+        app.mount(element)
+        
+        console.log('✅ MFE Assistente Compras montado com sucesso!')
+        
+        // Retornar função de cleanup (padrão Module Federation)
+        return () => {
+          console.log('🔄 MFE Assistente Compras desmontando')
+          app.unmount()
+        }
+      })
+    }).catch(error => {
+      console.error('❌ Erro ao montar MFE:', error)
+      throw error
+    })
+  }
+}
+
+// 🎯 FUNÇÃO MOUNT ASYNC ALTERNATIVA (compatibilidade)
+export async function mount(element, props = {}) {
+  try {
+    console.log('🔌 Mount chamado pelo Host VFX')
+    console.log('   - Element:', element)
+    console.log('   - Props:', props)
+    
+    // Importar Vue dinamicamente
+    const { createApp } = await import('vue')
+    const AssistenteComprasModule = await import('./AssistenteCompras.vue')
+    const AssistenteCompras = AssistenteComprasModule.default || AssistenteComprasModule
+    
+    // Criar app Vue com props do host
+    const app = createApp(AssistenteCompras, {
+      userData: props.userData || props.currentUserData,
+      themeData: props.themeData || props.temaAtual,
+      eventBus: props.eventBus || props.vfxEventBus,
+      mode: props.mode || 'production',
+      language: props.language || 'pt-BR'
+    })
+    
+    // Configurar props globais
+    if (props.eventBus) {
+      app.config.globalProperties.$hostEventBus = props.eventBus
+    }
+    
+    // Montar no elemento fornecido pelo host
+    app.mount(element)
+    
+    console.log('✅ MFE montado com sucesso no host!')
+    
+    // Retornar função de cleanup
+    return {
+      unmount: () => {
+        console.log('🧹 Desmontando MFE...')
+        app.unmount()
+      }
+    }
+  } catch (error) {
+    console.error('❌ Erro ao montar MFE:', error)
+    throw error
+  }
+}
+
+// Export assíncrono do componente (mantido para compatibilidade)
 export async function getAssistenteCompras() {
   const module = await import('./AssistenteCompras.vue')
   return module.default || module

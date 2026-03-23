@@ -41,7 +41,7 @@
       <h4>🐛 Debug (Dev Mode)</h4>
       <p><strong>Event Bus:</strong> {{ !!eventBus ? '✅' : '❌' }}</p>
       <p><strong>Props:</strong> userData={{ !!userData }}, theme={{ !!themeData }}</p>
-      <p><strong>Referer:</strong> {{ document.referrer || 'Direct Access' }}</p>
+      <p><strong>Referer:</strong> {{ referrerUrl }}</p>
     </div>
   </div>
 </template>
@@ -54,7 +54,15 @@ import ForbiddenPage from './ForbiddenPage.vue'
 const props = defineProps({
   userData: Object,
   themeData: String,
-  eventBus: Object
+  eventBus: Object,
+  mode: {
+    type: String,
+    default: 'production'
+  },
+  language: {
+    type: String,
+    default: 'pt-BR'
+  }
 })
 
 // Estados locais
@@ -107,6 +115,16 @@ const isAuthorizedAccess = computed(() => {
   return isAuthorized
 })
 
+// Computed para acessar referrer de forma segura
+const referrerUrl = computed(() => {
+  try {
+    return typeof document !== 'undefined' ? (document.referrer || 'Direct Access') : 'N/A'
+  } catch (error) {
+    console.warn('Erro ao acessar document.referrer:', error)
+    return 'Error accessing referrer'
+  }
+})
+
 // Funções de ação
 const gerarSugestao = () => {
   const sugestao = {
@@ -118,10 +136,64 @@ const gerarSugestao = () => {
   
   ultimaAcao.value = `Sugestão gerada: ${sugestao.produto} - R$ ${sugestao.preco}`
   
-  // Enviar para VFX se disponível
-  if (props.eventBus) {
-    props.eventBus.emit('assistente:sugestao-gerada', sugestao)
+  // 🔄 Comunicar com host VFX se EventBus disponível
+  if (props.eventBus && props.eventBus.emit) {
+    props.eventBus.emit('purchase-completed', {
+      orderId: Date.now(),
+      amount: sugestao.preco,
+      products: [sugestao.produto],
+      discount: sugestao.desconto,
+      timestamp: sugestao.timestamp
+    })
+    console.log('📡 [MFE→HOST] purchase-completed enviado')
   }
+}
+
+const atualizarDados = () => {
+  ultimaAcao.value = `Dados atualizados em ${new Date().toLocaleString()}`
+  
+  // 🔄 Solicitar navegação ao host se necessário
+  if (props.eventBus && props.eventBus.emit) {
+    props.eventBus.emit('navigation-request', {
+      target: '/vendas',
+      reason: 'Dados atualizados, redirecionar para vendas'
+    })
+    console.log('📡 [MFE→HOST] navigation-request enviado')
+  }
+}
+
+const reportError = (errorMessage) => {
+  console.error('❌ Erro no MFE:', errorMessage)
+  
+  // 🔄 Reportar erro para o host
+  if (props.eventBus && props.eventBus.emit) {
+    props.eventBus.emit('error-occurred', {
+      source: 'assistente-compras',
+      error: errorMessage,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent
+    })
+    console.log('📡 [MFE→HOST] error-occurred enviado')
+  }
+}
+
+// 🎨 Handler para mudança de tema do host
+const handleThemeChange = (newTheme) => {
+  console.log('🎨 Host mudou tema para:', newTheme)
+  // Aplicar novo tema no componente
+  ultimaAcao.value = `Tema alterado para: ${newTheme}`
+}
+
+// 👤 Handler para atualização de usuário do host
+const handleUserUpdated = (userData) => {
+  console.log('👤 Host atualizou usuário:', userData)
+  ultimaAcao.value = `Usuário atualizado: ${userData?.name || 'N/A'}`
+}
+
+// 🌐 Handler para mudança de idioma
+const handleLanguageChanged = (language) => {
+  console.log('🌐 Host mudou idioma para:', language)
+  ultimaAcao.value = `Idioma alterado para: ${language}`
 }
 
 const enviarPedido = () => {
@@ -145,22 +217,62 @@ const enviarPedido = () => {
 // Escutar eventos do VFX quando montado
 onMounted(() => {
   if (props.eventBus) {
-    // Escutar comandos do VFX
+    // 🎧 ESCUTAR EVENTOS DO HOST VFX
+    
+    // Atualização de dados gerais
     props.eventBus.on('vfx:refresh-data', () => {
       ultimaAcao.value = 'Dados atualizados pelo VFX'
     })
     
-    // Notificar VFX que MFE carregou
+    // 🎨 Host → MFE: Mudança de tema
+    props.eventBus.on('theme-changed', handleThemeChange)
+    
+    // 👤 Host → MFE: Atualização de usuário
+    props.eventBus.on('user-updated', handleUserUpdated)
+    
+    // 🌐 Host → MFE: Mudança de idioma
+    props.eventBus.on('language-changed', handleLanguageChanged)
+    
+    // 📡 Notificar VFX que MFE carregou
     props.eventBus.emit('assistente:ready', {
       mfe: 'assistente-compras',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      capabilities: ['purchase-suggestion', 'order-processing', 'theme-sync']
+    })
+    
+    console.log('🎧 EventBus listeners registrados:', {
+      'theme-changed': '🎨 Mudança de tema',
+      'user-updated': '👤 Atualização de usuário', 
+      'language-changed': '🌐 Mudança de idioma',
+      'vfx:refresh-data': '🔄 Refresh de dados'
     })
   }
+  
+  // 🔍 Log de debug para desenvolvimento
+  console.log('🚀 AssistenteCompras montado com props:', {
+    userData: props.userData,
+    themeData: props.themeData,
+    hasEventBus: !!props.eventBus,
+    isAuthorized: isAuthorizedAccess.value
+  })
 })
 
 onUnmounted(() => {
   if (props.eventBus) {
+    // 🧹 Limpar todos os listeners do EventBus
     props.eventBus.off('vfx:refresh-data')
+    props.eventBus.off('theme-changed', handleThemeChange)
+    props.eventBus.off('user-updated', handleUserUpdated)
+    props.eventBus.off('language-changed', handleLanguageChanged)
+    
+    // 📡 Notificar host que MFE está sendo desmontado
+    props.eventBus.emit('assistente:unmounting', {
+      mfe: 'assistente-compras',
+      timestamp: new Date().toISOString()
+    })
+    
+    console.log('🧹 EventBus listeners removidos')
   }
 })
 </script>
