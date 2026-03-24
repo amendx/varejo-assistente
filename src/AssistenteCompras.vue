@@ -39,9 +39,25 @@
     <!-- Debug info para desenvolvimento -->
     <div v-if="isDevelopment" class="debug-panel">
       <h4>🐛 Debug (Dev Mode)</h4>
-      <p><strong>Event Bus:</strong> {{ !!eventBus ? '✅' : '❌' }}</p>
-      <p><strong>Props:</strong> userData={{ !!userData }}, theme={{ !!themeData }}</p>
-      <p><strong>Referer:</strong> {{ referrerUrl }}</p>
+      <div class="debug-section">
+        <h5>👤 Dados do Usuário</h5>
+        <p><strong>Logado:</strong> {{ unifiedIsLoggedIn ? '✅' : '❌' }}</p>
+        <p><strong>Nome:</strong> {{ unifiedUserData?.nome || 'N/A' }}</p>
+        <p><strong>Email:</strong> {{ unifiedUserData?.email || 'N/A' }}</p>
+        <p><strong>Permissões:</strong> {{ unifiedUserPermissions?.length || 0 }}</p>
+        <p><strong>Lojas Ativas:</strong> {{ unifiedUserStores?.length || 0 }}</p>
+        <p><strong>Tem Permissão Assistente:</strong> {{ hasAssistentPermissions ? '✅' : '❌' }}</p>
+      </div>
+      
+      <div class="debug-section">
+        <h5>🔌 Integração VFX</h5>
+        <p><strong>Modo:</strong> {{ executionMode }}</p>
+        <p><strong>É iframe:</strong> {{ isInIframe ? '✅' : '❌' }}</p>
+        <p><strong>Event Bus:</strong> {{ !!unifiedEventBus ? '✅' : '❌' }}</p>
+        <p><strong>Tema:</strong> {{ unifiedThemeData || 'N/A' }}</p>
+        <p><strong>Idioma:</strong> {{ language }}</p>
+        <p><strong>Referer:</strong> {{ referrerUrl }}</p>
+      </div>
     </div>
   </div>
 </template>
@@ -49,16 +65,53 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ForbiddenPage from './ForbiddenPage.vue'
+import { iframeBridge, createIframeEventBus } from './iframe-bridge.js'
 
 // Props que podem vir do VFX Host
 const props = defineProps({
-  userData: Object,
-  themeData: String,
-  eventBus: Object,
+  // Dados do usuário logado (store.state.auth.currentUserData)
+  userData: {
+    type: Object,
+    default: () => ({})
+  },
+  
+  // Permissões do usuário (store.state.auth.currentUserData.permissoes)
+  userPermissions: {
+    type: Array,
+    default: () => []
+  },
+  
+  // Lojas ativas do usuário (store.getters.auth.lojasDoUsuarioAtivas)
+  userStores: {
+    type: Array,
+    default: () => []
+  },
+  
+  // Status de login (store.getters.auth.loggedIn)
+  isLoggedIn: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Tema atual (store.getters.themes.temaAtual)
+  themeData: {
+    type: String,
+    default: 'blue'
+  },
+  
+  // EventBus para comunicação
+  eventBus: {
+    type: Object,
+    default: null
+  },
+  
+  // Modo de execução
   mode: {
     type: String,
     default: 'production'
   },
+  
+  // Idioma
   language: {
     type: String,
     default: 'pt-BR'
@@ -69,23 +122,106 @@ const props = defineProps({
 const ultimaAcao = ref('')
 const isDevelopment = ref(process.env.NODE_ENV === 'development')
 
+// 🌉 DETECÇÃO DE MODO DE EXECUÇÃO
+const isInIframe = ref(window.parent !== window)
+const executionMode = computed(() => isInIframe.value ? 'iframe' : 'module-federation')
+
+// 📡 DADOS REATIVOS PARA IFRAME (recebidos via postMessage)
+const iframeData = ref({
+  userData: {},
+  userPermissions: [],
+  userStores: [],
+  isLoggedIn: false,
+  themeData: 'blue'
+})
+
+// 🎯 DADOS COMPUTADOS UNIFICADOS (iframe ou props diretas)
+const unifiedUserData = computed(() => {
+  return isInIframe.value ? iframeData.value.userData : props.userData
+})
+
+const unifiedUserPermissions = computed(() => {
+  return isInIframe.value ? iframeData.value.userPermissions : props.userPermissions
+})
+
+const unifiedUserStores = computed(() => {
+  return isInIframe.value ? iframeData.value.userStores : props.userStores
+})
+
+const unifiedIsLoggedIn = computed(() => {
+  return isInIframe.value ? iframeData.value.isLoggedIn : props.isLoggedIn
+})
+
+const unifiedThemeData = computed(() => {
+  return isInIframe.value ? iframeData.value.themeData : props.themeData
+})
+
+const unifiedEventBus = computed(() => {
+  return isInIframe.value ? createIframeEventBus() : props.eventBus
+})
+
+// Computed para validação de permissões específicas do assistente
+const hasAssistentPermissions = computed(() => {
+  const permissions = unifiedUserPermissions.value || unifiedUserData.value?.permissoes || []
+  
+  // Verificar permissões específicas do assistente de compras
+  const requiredPermissions = [
+    'assistente.read',
+    'assistente.compras',
+    'vendas.read',
+    'produtos.read'
+  ]
+  
+  // Usuário precisa ter pelo menos uma das permissões necessárias
+  return requiredPermissions.some(perm => 
+    permissions.some(userPerm => 
+      userPerm === perm || 
+      userPerm.startsWith(perm.split('.')[0]) || 
+      userPerm === 'admin' || 
+      userPerm === 'super_admin'
+    )
+  )
+})
+
+// Computed para validar lojas ativas
+const hasActiveStores = computed(() => {
+  const stores = unifiedUserStores.value || []
+  return stores.length > 0
+})
+
 // Verificação de acesso autorizado
 const isAuthorizedAccess = computed(() => {
   // Em desenvolvimento, sempre permitir acesso se tiver dados mock
-  if (isDevelopment.value && props.userData) {
+  if (isDevelopment.value && unifiedUserData.value?.nome) {
     return true
   }
   
   // Verificações para produção:
-  // 1. Se tem eventBus (passado pelo VFX)
-  // 2. Se tem userData ou themeData (dados do VFX)  
-  // 3. Se tem flag global do VFX
-  // 4. Se o referer vem do VFX
-  const hasEventBus = !!props.eventBus && props.eventBus.emit
-  const hasVFXData = !!(props.userData?.nome || props.themeData)
-  const hasVFXFlag = !!(window.__POWERED_BY_VFX__ || window.vfxMFEEventBus)
+  // 1. Usuário deve estar logado
+  if (!unifiedIsLoggedIn.value && !unifiedUserData.value?.nome) {
+    console.warn('❌ Usuário não está logado')
+    return false
+  }
   
-  // Verificação segura do document.referrer
+  // 2. Usuário deve ter permissões do assistente  
+  if (!hasAssistentPermissions.value) {
+    console.warn('❌ Usuário não tem permissões para o assistente de compras')
+    return false
+  }
+  
+  // 3. Usuário deve ter lojas ativas
+  if (!hasActiveStores.value) {
+    console.warn('❌ Usuário não tem lojas ativas')
+    return false
+  }
+  
+  // 4. Verificar integração (Module Federation ou iframe)
+  const hasEventBus = !!unifiedEventBus.value && unifiedEventBus.value.emit
+  const hasVFXData = !!(unifiedUserData.value?.nome || unifiedThemeData.value)
+  const hasVFXFlag = !!(window.__POWERED_BY_VFX__ || window.vfxMFEEventBus)
+  const isIframeMode = isInIframe.value
+  
+  // 5. Verificação segura do document.referrer
   let hasValidReferer = false
   try {
     const referrer = typeof document !== 'undefined' ? document.referrer || '' : ''
@@ -100,16 +236,25 @@ const isAuthorizedAccess = computed(() => {
     hasValidReferer = false
   }
   
-  const isAuthorized = hasEventBus || hasVFXData || hasVFXFlag || hasValidReferer
+  // Pelo menos uma das validações técnicas deve passar (host integration)
+  const isAuthorized = hasEventBus || hasVFXData || hasVFXFlag || hasValidReferer || isIframeMode
   
-  console.log('🔍 Verificação de Acesso:', {
+  console.log('🔍 Verificação de Acesso Completa:', {
+    executionMode: executionMode.value,
+    isIframe: isIframeMode,
     isDevelopment: isDevelopment.value,
+    isLoggedIn: unifiedIsLoggedIn.value,
+    hasUserData: !!unifiedUserData.value?.nome,
+    hasPermissions: hasAssistentPermissions.value,
+    hasActiveStores: hasActiveStores.value,
     hasEventBus,
     hasVFXData,
     hasVFXFlag, 
     hasValidReferer,
+    userPermissions: unifiedUserPermissions.value || [],
+    userStores: unifiedUserStores.value?.length || 0,
     referer: typeof document !== 'undefined' ? document.referrer : 'N/A',
-    isAuthorized
+    finalAuthorization: isAuthorized
   })
   
   return isAuthorized
@@ -127,53 +272,102 @@ const referrerUrl = computed(() => {
 
 // Funções de ação
 const gerarSugestao = () => {
+  // Usar dados unificados (iframe ou module federation)
+  const lojaSelecionada = unifiedUserStores.value?.[0] || { nome: 'Loja Padrão', id: 1 }
+  const nomeUsuario = unifiedUserData.value?.nome || 'Usuário'
+  
   const sugestao = {
-    produto: 'Notebook Dell',
+    produto: 'Notebook Dell Inspiron 15',
     preco: 2500.00,
     desconto: 10,
-    timestamp: new Date().toLocaleString()
+    loja: lojaSelecionada.nome,
+    lojaId: lojaSelecionada.id,
+    usuario: nomeUsuario,
+    timestamp: new Date().toLocaleString(),
+    analise: {
+      categoria: 'Informática',
+      margem: 15,
+      demanda: 'Alta',
+      estoque: 8
+    }
   }
   
-  ultimaAcao.value = `Sugestão gerada: ${sugestao.produto} - R$ ${sugestao.preco}`
+  ultimaAcao.value = `Sugestão gerada por ${nomeUsuario} para ${lojaSelecionada.nome}: ${sugestao.produto} - R$ ${sugestao.preco.toLocaleString('pt-BR')}`
   
-  // 🔄 Comunicar com host VFX se EventBus disponível
-  if (props.eventBus && props.eventBus.emit) {
-    props.eventBus.emit('purchase-completed', {
-      orderId: Date.now(),
-      amount: sugestao.preco,
-      products: [sugestao.produto],
-      discount: sugestao.desconto,
-      timestamp: sugestao.timestamp
+  // 🔄 Comunicar com host VFX (Module Federation ou iframe)
+  const eventBus = unifiedEventBus.value
+  if (eventBus && eventBus.emit) {
+    eventBus.emit('assistente:sugestao-gerada', {
+      ...sugestao,
+      userId: unifiedUserData.value?.id,
+      userPermissions: unifiedUserPermissions.value || [],
+      executionMode: executionMode.value
     })
-    console.log('📡 [MFE→HOST] purchase-completed enviado')
+    console.log(`📡 [MFE→HOST] ${executionMode.value} - assistente:sugestao-gerada enviado:`, sugestao)
   }
 }
 
 const atualizarDados = () => {
-  ultimaAcao.value = `Dados atualizados em ${new Date().toLocaleString()}`
+  const nomeUsuario = unifiedUserData.value?.nome || 'Usuário'
+  const totalLojas = unifiedUserStores.value?.length || 0
   
-  // 🔄 Solicitar navegação ao host se necessário
-  if (props.eventBus && props.eventBus.emit) {
-    props.eventBus.emit('navigation-request', {
-      target: '/vendas',
-      reason: 'Dados atualizados, redirecionar para vendas'
+  ultimaAcao.value = `Dados atualizados por ${nomeUsuario} (${totalLojas} lojas) em ${new Date().toLocaleString()}`
+  
+  // 🔄 Solicitar atualização de dados no host
+  const eventBus = unifiedEventBus.value
+  if (eventBus && eventBus.emit) {
+    eventBus.emit('assistente:dados-atualizados', {
+      usuario: nomeUsuario,
+      totalLojas,
+      timestamp: new Date().toISOString(),
+      origem: 'assistente-compras',
+      executionMode: executionMode.value
     })
-    console.log('📡 [MFE→HOST] navigation-request enviado')
+    console.log(`📡 [MFE→HOST] ${executionMode.value} - assistente:dados-atualizados enviado`)
+  }
+}
+
+const analisarProdutos = () => {
+  const nomeUsuario = unifiedUserData.value?.nome || 'Usuário'
+  const lojasAtivas = unifiedUserStores.value || []
+  
+  ultimaAcao.value = `Análise de produtos iniciada por ${nomeUsuario} para ${lojasAtivas.length} loja(s)`
+  
+  // 🔄 Solicitar navegação ao host
+  const eventBus = unifiedEventBus.value  
+  if (eventBus && eventBus.emit) {
+    eventBus.emit('assistente:navigation-request', {
+      target: '/produtos',
+      params: {
+        lojas: lojasAtivas.map(l => l.id || l.codigo),
+        analise: 'compras',
+        usuario: unifiedUserData.value?.id
+      },
+      reason: 'Análise de produtos para assistente de compras',
+      executionMode: executionMode.value
+    })
+    console.log(`📡 [MFE→HOST] ${executionMode.value} - assistente:navigation-request enviado para análise de produtos`)
   }
 }
 
 const reportError = (errorMessage) => {
   console.error('❌ Erro no MFE:', errorMessage)
+  const nomeUsuario = unifiedUserData.value?.nome || 'Usuário não identificado'
   
   // 🔄 Reportar erro para o host
-  if (props.eventBus && props.eventBus.emit) {
-    props.eventBus.emit('error-occurred', {
+  const eventBus = unifiedEventBus.value
+  if (eventBus && eventBus.emit) {
+    eventBus.emit('assistente:error-occurred', {
       source: 'assistente-compras',
       error: errorMessage,
+      usuario: nomeUsuario,
+      userId: unifiedUserData.value?.id,
+      lojas: unifiedUserStores.value?.length || 0,
       timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent
+      userAgent: navigator.userAgent,
+      executionMode: executionMode.value
     })
-    console.log('📡 [MFE→HOST] error-occurred enviado')
+    console.log(`📡 [MFE→HOST] ${executionMode.value} - assistente:error-occurred enviado`)
   }
 }
 
@@ -196,83 +390,165 @@ const handleLanguageChanged = (language) => {
   ultimaAcao.value = `Idioma alterado para: ${language}`
 }
 
+// 🌉 SETUP DOS HANDLERS IFRAME
+const setupIframeHandlers = () => {
+  if (!isInIframe.value) return
+  
+  console.log('🌉 Configurando handlers do iframe...')
+  
+  // Handler para receber dados do host VFX
+  iframeBridge.on('host:data-response', (data) => {
+    console.log('📥 Dados recebidos do host VFX via iframe:', data)
+    
+    // Atualizar dados reativos
+    if (data.userData) iframeData.value.userData = data.userData
+    if (data.userPermissions) iframeData.value.userPermissions = data.userPermissions
+    if (data.userStores) iframeData.value.userStores = data.userStores
+    if (typeof data.isLoggedIn === 'boolean') iframeData.value.isLoggedIn = data.isLoggedIn
+    if (data.themeData) iframeData.value.themeData = data.themeData
+    
+    ultimaAcao.value = `Dados atualizados via iframe - Usuário: ${data.userData?.nome || 'N/A'}`
+    
+    // Notificar que MFE está pronto
+    iframeBridge.updateStatus('ready')
+  })
+  
+  // Handler específicos do iframe para eventos do host
+  iframeBridge.on('host:theme-changed', (theme) => {
+    console.log('🎨 [IFRAME] Host VFX mudou tema para:', theme)
+    iframeData.value.themeData = theme
+    ultimaAcao.value = `Tema alterado via iframe: ${theme}`
+  })
+  
+  iframeBridge.on('host:user-updated', (userData) => {
+    console.log('👤 [IFRAME] Host VFX atualizou usuário:', userData)
+    iframeData.value.userData = userData
+    if (userData.permissoes) iframeData.value.userPermissions = userData.permissoes
+    ultimaAcao.value = `Usuário atualizado via iframe: ${userData?.nome || 'N/A'}`
+  })
+  
+  iframeBridge.on('host:language-changed', (language) => {
+    console.log('🌐 [IFRAME] Host VFX mudou idioma para:', language)
+    ultimaAcao.value = `Idioma alterado via iframe: ${language}`
+  })
+}
+
 const enviarPedido = () => {
   const pedido = {
     id: Math.random().toString(36).substr(2, 9),
     produto: 'Notebook Dell',
     quantidade: 1,
     valor: 2250.00, // com desconto
-    usuario: props.userData?.nome || 'Usuario Demo',
-    timestamp: new Date().toLocaleString()
+    usuario: unifiedUserData.value?.nome || 'Usuario Demo',
+    loja: unifiedUserStores.value?.[0]?.nome || 'Loja Demo',
+    timestamp: new Date().toLocaleString(),
+    executionMode: executionMode.value
   }
   
-  ultimaAcao.value = `Pedido enviado: ${pedido.id} - R$ ${pedido.valor}`
+  ultimaAcao.value = `Pedido enviado: ${pedido.id} - R$ ${pedido.valor.toLocaleString('pt-BR')}`
   
-  // Enviar para VFX se disponível
-  if (props.eventBus) {
-    props.eventBus.emit('assistente:pedido-criado', pedido)
+  // Enviar para VFX (Module Federation ou iframe)
+  const eventBus = unifiedEventBus.value
+  if (eventBus) {
+    eventBus.emit('assistente:pedido-criado', pedido)
+    console.log(`📡 [MFE→HOST] ${executionMode.value} - assistente:pedido-criado enviado:`, pedido)
   }
 }
 
 // Escutar eventos do VFX quando montado
 onMounted(() => {
-  if (props.eventBus) {
-    // 🎧 ESCUTAR EVENTOS DO HOST VFX
+  console.log(`🚀 MFE montado em modo: ${executionMode.value}`)
+  
+  // 🌉 INICIALIZAR IFRAME SE NECESSÁRIO
+  if (isInIframe.value) {
+    console.log('🌉 Modo iframe detectado - configurando comunicação...')
+    setupIframeHandlers()
     
-    // Atualização de dados gerais
-    props.eventBus.on('vfx:refresh-data', () => {
-      ultimaAcao.value = 'Dados atualizados pelo VFX'
-    })
+    // Atualizar status para loading
+    iframeBridge.updateStatus('loading')
     
-    // 🎨 Host → MFE: Mudança de tema
-    props.eventBus.on('theme-changed', handleThemeChange)
+    // Aguardar um pouco antes de solicitar dados
+    setTimeout(() => {
+      iframeBridge.requestHostData([
+        'userData', 
+        'userPermissions', 
+        'userStores', 
+        'isLoggedIn', 
+        'themeData'
+      ])
+    }, 500)
     
-    // 👤 Host → MFE: Atualização de usuário
-    props.eventBus.on('user-updated', handleUserUpdated)
+  } else {
+    // 🔌 MODO MODULE FEDERATION
+    console.log('🔌 Modo Module Federation - configurando listeners...')
     
-    // 🌐 Host → MFE: Mudança de idioma
-    props.eventBus.on('language-changed', handleLanguageChanged)
-    
-    // 📡 Notificar VFX que MFE carregou
-    props.eventBus.emit('assistente:ready', {
-      mfe: 'assistente-compras',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0',
-      capabilities: ['purchase-suggestion', 'order-processing', 'theme-sync']
-    })
-    
-    console.log('🎧 EventBus listeners registrados:', {
-      'theme-changed': '🎨 Mudança de tema',
-      'user-updated': '👤 Atualização de usuário', 
-      'language-changed': '🌐 Mudança de idioma',
-      'vfx:refresh-data': '🔄 Refresh de dados'
-    })
+    const eventBus = unifiedEventBus.value
+    if (eventBus) {
+      // 🎧 ESCUTAR EVENTOS DO HOST VFX
+      
+      // Atualização de dados gerais
+      eventBus.on('vfx:refresh-data', () => {
+        ultimaAcao.value = 'Dados atualizados pelo VFX'
+      })
+      
+      // 🎨 Host → MFE: Mudança de tema
+      eventBus.on('theme-changed', handleThemeChange)
+      
+      // 👤 Host → MFE: Atualização de usuário
+      eventBus.on('user-updated', handleUserUpdated)
+      
+      // 🌐 Host → MFE: Mudança de idioma
+      eventBus.on('language-changed', handleLanguageChanged)
+      
+      // 📡 Notificar VFX que MFE carregou
+      eventBus.emit('assistente:ready', {
+        mfe: 'assistente-compras',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        capabilities: ['purchase-suggestion', 'order-processing', 'theme-sync'],
+        executionMode: 'module-federation'
+      })
+      
+      console.log('🎧 EventBus listeners registrados para Module Federation')
+    }
   }
   
   // 🔍 Log de debug para desenvolvimento
-  console.log('🚀 AssistenteCompras montado com props:', {
-    userData: props.userData,
-    themeData: props.themeData,
-    hasEventBus: !!props.eventBus,
-    isAuthorized: isAuthorizedAccess.value
+  console.log(`🚀 AssistenteCompras montado em modo ${executionMode.value}:`, {
+    hasUserData: !!unifiedUserData.value?.nome,
+    hasEventBus: !!unifiedEventBus.value,
+    isAuthorized: isAuthorizedAccess.value,
+    userStores: unifiedUserStores.value?.length || 0,
+    permissions: unifiedUserPermissions.value?.length || 0
   })
 })
 
 onUnmounted(() => {
-  if (props.eventBus) {
-    // 🧹 Limpar todos os listeners do EventBus
-    props.eventBus.off('vfx:refresh-data')
-    props.eventBus.off('theme-changed', handleThemeChange)
-    props.eventBus.off('user-updated', handleUserUpdated)
-    props.eventBus.off('language-changed', handleLanguageChanged)
-    
-    // 📡 Notificar host que MFE está sendo desmontado
-    props.eventBus.emit('assistente:unmounting', {
-      mfe: 'assistente-compras',
-      timestamp: new Date().toISOString()
-    })
-    
-    console.log('🧹 EventBus listeners removidos')
+  console.log(`🧹 Desmontando MFE em modo: ${executionMode.value}`)
+  
+  if (isInIframe.value) {
+    // 🌉 LIMPEZA DO IFRAME
+    iframeBridge.updateStatus('unmounting')
+    // Os listeners do iframe são limpos automaticamente
+  } else {
+    // 🔌 LIMPEZA DO MODULE FEDERATION
+    const eventBus = unifiedEventBus.value
+    if (eventBus) {
+      // 🧹 Limpar todos os listeners do EventBus
+      eventBus.off('vfx:refresh-data')
+      eventBus.off('theme-changed', handleThemeChange)
+      eventBus.off('user-updated', handleUserUpdated)
+      eventBus.off('language-changed', handleLanguageChanged)
+      
+      // 📡 Notificar host que MFE está sendo desmontado
+      eventBus.emit('assistente:unmounting', {
+        mfe: 'assistente-compras',
+        timestamp: new Date().toISOString(),
+        executionMode: 'module-federation'
+      })
+      
+      console.log('🧹 EventBus listeners removidos')
+    }
   }
 })
 </script>

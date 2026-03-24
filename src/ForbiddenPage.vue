@@ -37,10 +37,6 @@
         <button @click="toggleDebug" class="debug-btn">
           {{ showDebug ? '🔼' : '🔽' }} Debug Info
         </button>
-        <a href="https://github.com/[seu-org]/varejo-assistente-compras" 
-           class="github-btn" target="_blank">
-          📚 Ver Documentação
-        </a>
       </div>
     </div>
   </div>

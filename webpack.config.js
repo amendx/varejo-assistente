@@ -11,7 +11,10 @@ const publicPath = isDev || isPreview
 
 module.exports = {
   mode: isDev ? 'development' : 'production',
-  entry: './src/index.js',
+  entry: {
+    main: './src/index.js',
+    iframe: './src/iframe.js'  // 🌉 Nova entrada para iframe
+  },
   
   output: {
     path: path.resolve(__dirname, 'dist'),
@@ -87,6 +90,13 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: './public/index.html',
       filename: 'index.html',
+      chunks: ['main'],  // Apenas chunk main para Module Federation
+      inject: true
+    }),
+    new HtmlWebpackPlugin({
+      template: './public/iframe.html', 
+      filename: 'iframe.html',
+      chunks: ['iframe'],  // 🌉 Chunk iframe para modo iframe
       inject: true
     }),
     new VueLoaderPlugin()

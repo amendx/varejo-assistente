@@ -13,9 +13,23 @@
 ### **Props Esperadas:**
 ```javascript
 {
-  userData: store.state.auth.currentUserData,      // Dados do usuário logado
-  themeData: store.getters['themes/temaAtual'],    // Tema atual (blue, green, etc)
-  eventBus: this.$eventBus                         // EventBus para comunicação
+  // Dados do usuário logado do VFX
+  userData: store.state.auth.currentUserData,           // { nome, email, id, permissoes, ... }
+  
+  // Permissões específicas do usuário
+  userPermissions: store.state.auth.currentUserData?.permissoes || [],
+  
+  // Lojas ativas do usuário
+  userStores: store.getters['auth/lojasDoUsuarioAtivas'], // [{ id, nome, codigo, ... }]
+  
+  // Status de login
+  isLoggedIn: store.getters['auth/loggedIn'],           // boolean
+  
+  // Tema atual do VFX
+  themeData: store.getters['themes/temaAtual'],         // "blue", "green", etc
+  
+  // EventBus para comunicação bidirecional
+  eventBus: this.$eventBus                              // Object com emit/on/off
 }
 ```
 
@@ -103,7 +117,11 @@ module.exports = {
 export default {
   name: 'MicrofrontendContainer',
   props: {
+    // Props podem ser passadas ou obtidas da store
     userData: Object,
+    userPermissions: Array,
+    userStores: Array,
+    isLoggedIn: Boolean,
     themeData: String,
     eventBus: Object
   },
@@ -133,11 +151,25 @@ export default {
         
         console.log('✅ Container carregado:', container)
         
-        // Montar MFE no elemento
+        // Montar MFE no elemento com todas as props necessárias
         this.mfeInstance = await container.mount(this.$refs.mfeContainer, {
-          userData: this.userData,
-          themeData: this.themeData,
-          eventBus: this.eventBus
+          // Dados do usuário da store
+          userData: this.userData || this.$store.state.auth.currentUserData,
+          
+          // Permissões do usuário
+          userPermissions: this.userPermissions || this.$store.state.auth.currentUserData?.permissoes || [],
+          
+          // Lojas ativas do usuário  
+          userStores: this.userStores || this.$store.getters['auth/lojasDoUsuarioAtivas'],
+          
+          // Status de login
+          isLoggedIn: this.isLoggedIn !== undefined ? this.isLoggedIn : this.$store.getters['auth/loggedIn'],
+          
+          // Tema atual
+          themeData: this.themeData || this.$store.getters['themes/temaAtual'],
+          
+          // EventBus para comunicação
+          eventBus: this.eventBus || this.$eventBus
         })
         
         console.log('✅ MFE montado com sucesso!')

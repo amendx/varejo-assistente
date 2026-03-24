@@ -39,19 +39,6 @@ Acessos não autorizados são redirecionados para uma página de **403 Forbidden
 - Node.js 18+ 
 - npm 8+
 
-### Instalação e Execução
-
-```bash
-# Clonar repositório
-git clone https://github.com/[seu-org]/varejo-assistente-compras.git
-cd varejo-assistente-compras
-
-# Instalar dependências
-npm install
-
-# Iniciar em modo desenvolvimento
-npm run dev
-```
 
 O microfrontend estará disponível em: `http://localhost:8090`
 

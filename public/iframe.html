@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de Compras - Iframe</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        #app {
+            width: 100%;
+            min-height: 100vh;
+            padding: 0;
+        }
+        
+        /* Loading spinner para quando iframe carrega */
+        .iframe-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 18px;
+            flex-direction: column;
+        }
+        
+        .iframe-loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Esconder loading quando Vue carrega */
+        #app:not(:empty) + .iframe-loading {
+            display: none;
+        }
+        
+        /* Estilos responsivos para iframe */
+        @media (max-width: 768px) {
+            #app {
+                padding: 10px;
+            }
+        }
+        
+        /* Debug info no iframe */
+        .iframe-debug {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 9999;
+            font-family: monospace;
+        }
+        
+        .iframe-debug.development {
+            display: block;
+        }
+        
+        .iframe-debug.production {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Vue 3 app será montada aqui -->
+    </div>
+    
+    <!-- Loading fallback -->
+    <div class="iframe-loading">
+        <div class="spinner"></div>
+        <p>🌉 Carregando Assistente de Compras...</p>
+        <small>Modo iframe ativo</small>
+    </div>
+    
+    <!-- Debug info -->
+    <div class="iframe-debug development" id="iframe-debug">
+        📱 Iframe Mode | 🚀 Loading...
+    </div>
+    
+    <script>
+        // Debug info update
+        function updateDebugInfo(info) {
+            const debugEl = document.getElementById('iframe-debug');
+            if (debugEl) {
+                debugEl.textContent = `📱 Iframe | ${info}`;
+            }
+        }
+        
+        // Comunicação inicial com host
+        window.addEventListener('load', () => {
+            updateDebugInfo('🔄 Initializing...');
+            
+            // Notificar host que iframe carregou (estrutura HTML pronta)
+            window.parent.postMessage({
+                type: 'VFX_MFE_EVENT',
+                event: 'iframe:loaded',
+                data: {
+                    url: window.location.href,
+                    timestamp: Date.now(),
+                    ready: false
+                }
+            }, '*');
+        });
+        
+        // Escutar eventos do bridge para debug
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'VFX_HOST_EVENT') {
+                updateDebugInfo(`📥 ${event.data.event}`);
+            }
+        });
+        
+        // Error handling global
+        window.addEventListener('error', (event) => {
+            console.error('🚨 Iframe Error:', event.error);
+            window.parent.postMessage({
+                type: 'VFX_MFE_EVENT',
+                event: 'iframe:error',
+                data: {
+                    message: event.error.message,
+                    filename: event.filename,
+                    line: event.lineno,
+                    timestamp: Date.now()
+                }
+            }, '*');
+        });
+        
+        // Promise rejection handling
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('🚨 Iframe Promise Rejection:', event.reason);
+            window.parent.postMessage({
+                type: 'VFX_MFE_EVENT',
+                event: 'iframe:promise-rejection',
+                data: {
+                    reason: event.reason?.toString(),
+                    timestamp: Date.now()
+                }
+            }, '*');
+        });
+    </script>
+    
+    <!-- Carregar bundle do iframe -->
+    <script src="./iframe.bundle.js"></script>
+</body>
+</html>

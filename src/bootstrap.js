@@ -122,14 +122,48 @@ export default {
       return import('./AssistenteCompras.vue').then((AssistenteComprasModule) => {
         const AssistenteCompras = AssistenteComprasModule.default || AssistenteComprasModule
         
-        // Criar instância Vue 3 com props do host
+        // Criar instância Vue 3 com props específicas do VFX
         const app = createApp(AssistenteCompras, {
-          // Props mapeadas do host VFX
-          userData: props.userData || props.currentUserData,
-          themeData: props.themeData || props.temaAtual,
+          // Dados do usuário logado (store.state.auth.currentUserData)
+          userData: props.userData || props.currentUserData || {},
+          
+          // Permissões do usuário (currentUserData.permissoes ou userPermissions)
+          userPermissions: props.userPermissions || props.userData?.permissoes || [],
+          
+          // Lojas ativas do usuário (store.getters.auth.lojasDoUsuarioAtivas)
+          userStores: props.userStores || props.lojasUsuario || props.lojasDoUsuarioAtivas || [],
+          
+          // Status de login (store.getters.auth.loggedIn)
+          isLoggedIn: props.isLoggedIn || !!props.userData?.nome || !!props.currentUserData?.nome,
+          
+          // Tema atual (store.getters.themes.temaAtual)
+          themeData: props.themeData || props.temaAtual || props.theme || 'blue',
+          
+          // EventBus para comunicação
           eventBus: props.eventBus || props.vfxEventBus,
+          
+          // Configurações
           mode: props.mode || 'production',
           language: props.language || 'pt-BR'
+        })
+        
+        // Log das props para debug
+        const userData = props.userData || props.currentUserData || {}
+        const userPermissions = props.userPermissions || userData.permissoes || []
+        const userStores = props.userStores || props.lojasUsuario || props.lojasDoUsuarioAtivas || []
+        
+        console.log('📡 Dados recebidos do VFX Host:', {
+          hasUserData: !!userData.nome,
+          userName: userData.nome || 'N/A',
+          userEmail: userData.email || 'N/A',
+          permissionsCount: userPermissions.length,
+          permissions: userPermissions.slice(0, 5), // Primeiras 5 permissões
+          storesCount: userStores.length,
+          stores: userStores.map(l => l.nome || l.descricao || `ID:${l.id}`).slice(0, 3),
+          isLoggedIn: !!userData.nome,
+          theme: props.themeData || props.temaAtual || props.theme || 'blue',
+          hasEventBus: !!props.eventBus,
+          mode: props.mode || 'production'
         })
         
         // Configurar props globais se necessário
