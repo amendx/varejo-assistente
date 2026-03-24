@@ -63,20 +63,54 @@
                 id: 'usr_123456',
                 nome: 'João da Silva',
                 email: 'joao.silva@vfx.com',
-                funcao: 'Gerente de Vendas'
+                funcao: 'Gerente de Vendas',
+                ambiente: 'DESENVOLVIMENTO',
+                tipoCliente: 'MERCADO'
             },
             userPermissions: [
                 'PERM_ASSISTENTE_COMPRA_ACESSO', // ← PERMISSÃO OBRIGATÓRIA
                 'vendas_visualizar',
                 'vendas_criar',
                 'relatorios_visualizar',
-                'produtos_visualizar'
+                'produtos_visualizar',
+                'configuracoes_basicas'
             ],
             userStores: [
-                { 
-                    id: 'store_001', 
-                    codigo: '001',
-                    nome: 'VFX Loja Centro'
+                {
+                    id: 2906,
+                    ativo: 'S',
+                    principal: false,
+                    loja: {
+                        id: 2,
+                        sigla: 'LJ02',
+                        ativo: true,
+                        tefAtivo: false,
+                        habilitaSegundaViaTEF: false,
+                        spedSuprimeZerosCodProduto: false,
+                        enviaProcodMaiorQueDefinido: false,
+                        numeroDoDocumento: '46885939000181',
+                        fantasia: 'BLAUS (PONTA DO FAROL)',
+                        uf: 'MA',
+                        replicaICMSCST: false
+                    }
+                },
+                {
+                    id: 2907,
+                    ativo: 'S',
+                    principal: true,
+                    loja: {
+                        id: 5,
+                        sigla: 'LJ05',
+                        ativo: true,
+                        tefAtivo: false,
+                        habilitaSegundaViaTEF: false,
+                        spedSuprimeZerosCodProduto: false,
+                        enviaProcodMaiorQueDefinido: false,
+                        numeroDoDocumento: '45261539000132',
+                        fantasia: 'BLAUS (CALHAU)',
+                        uf: 'MA',
+                        replicaICMSCST: false
+                    }
                 }
             ],
             isLoggedIn: true,

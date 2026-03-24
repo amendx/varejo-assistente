@@ -13,10 +13,104 @@
     </div>
 
     <div class="user-info">
-      <h3>👤 Dados do VFX</h3>
-      <p><strong>Usuário:</strong> {{ userData?.nome || 'Carregando...' }}</p>
-      <p><strong>Tema:</strong> {{ themeData || 'blue' }}</p>
-      <p><strong>Status:</strong> {{ userData ? '✅ Conectado ao VFX' : '❌ Modo standalone' }}</p>
+      <h3>👤 Informações do Usuário</h3>
+      <div class="info-grid">
+        <div class="info-item">
+          <strong>Nome:</strong> {{ unifiedUserData?.nome || 'Carregando...' }}
+        </div>
+        <div class="info-item">
+          <strong>Email:</strong> {{ unifiedUserData?.email || 'N/A' }}
+        </div>
+        <div class="info-item">
+          <strong>ID:</strong> {{ unifiedUserData?.id || 'N/A' }}
+        </div>
+        <div class="info-item">
+          <strong>Função:</strong> {{ unifiedUserData?.funcao || 'N/A' }}
+        </div>
+        <div class="info-item">
+          <strong>Ambiente:</strong> {{ unifiedUserData?.ambiente || 'N/A' }}
+        </div>
+        <div class="info-item">
+          <strong>Tipo Cliente:</strong> {{ unifiedUserData?.tipoCliente || 'N/A' }}
+        </div>
+        <div class="info-item">
+          <strong>Status Login:</strong> 
+          <span :class="{ 'status-success': unifiedIsLoggedIn, 'status-error': !unifiedIsLoggedIn }">
+            {{ unifiedIsLoggedIn ? '✅ Conectado' : '❌ Desconectado' }}
+          </span>
+        </div>
+        <div class="info-item">
+          <strong>Tema:</strong> {{ unifiedThemeData || 'Padrão' }}
+        </div>
+      </div>
+    </div>
+
+    <div class="permissions-info">
+      <h3>🔑 Permissões do Usuário</h3>
+      <div v-if="unifiedUserPermissions && unifiedUserPermissions.length > 0" class="permissions-grid">
+        <div 
+          v-for="permission in unifiedUserPermissions" 
+          :key="permission"
+          class="permission-tag"
+          :class="{ 'permission-required': permission === 'PERM_ASSISTENTE_COMPRA_ACESSO' }"
+        >
+          {{ permission }}
+        </div>
+      </div>
+      <div v-else class="no-data">
+        ⚠️ Nenhuma permissão encontrada
+      </div>
+    </div>
+
+    <div class="stores-info">
+      <h3>🏪 Lojas do Usuário</h3>
+      <div v-if="unifiedUserStores && unifiedUserStores.length > 0" class="stores-list">
+        <div 
+          v-for="storeItem in unifiedUserStores" 
+          :key="storeItem.id || storeItem.loja?.id"
+          class="store-card"
+          :class="{ 'store-principal': storeItem.principal }"
+        >
+          <div class="store-header">
+            <h4>{{ storeItem.loja?.fantasia || storeItem.nome || 'Loja sem nome' }}</h4>
+            <div class="store-badges">
+              <span v-if="storeItem.principal" class="badge badge-primary">Principal</span>
+              <span 
+                :class="{ 
+                  'badge badge-success': storeItem.ativo === 'S' || storeItem.loja?.ativo, 
+                  'badge badge-danger': storeItem.ativo === 'N' || !storeItem.loja?.ativo 
+                }"
+              >
+                {{ (storeItem.ativo === 'S' || storeItem.loja?.ativo) ? 'Ativa' : 'Inativa' }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="store-details">
+            <div class="detail-item">
+              <strong>ID:</strong> {{ storeItem.loja?.id || storeItem.id || 'N/A' }}
+            </div>
+            <div class="detail-item">
+              <strong>Sigla:</strong> {{ storeItem.loja?.sigla || storeItem.codigo || 'N/A' }}
+            </div>
+            <div class="detail-item">
+              <strong>CNPJ:</strong> {{ storeItem.loja?.numeroDoDocumento || 'N/A' }}
+            </div>
+            <div class="detail-item">
+              <strong>UF:</strong> {{ storeItem.loja?.uf || 'N/A' }}
+            </div>
+            <div v-if="storeItem.loja?.tefAtivo !== undefined" class="detail-item">
+              <strong>TEF:</strong> 
+              <span :class="{ 'status-success': storeItem.loja.tefAtivo, 'status-error': !storeItem.loja.tefAtivo }">
+                {{ storeItem.loja.tefAtivo ? '✅ Ativo' : '❌ Inativo' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="no-data">
+        ⚠️ Nenhuma loja encontrada
+      </div>
     </div>
 
     <div class="actions">
@@ -587,17 +681,183 @@ onUnmounted(() => {
   color: white;
 }
 
-.user-info, .actions, .resultado {
+.user-info, .permissions-info, .stores-info, .actions, .resultado {
   margin-bottom: 20px;
   padding: 15px;
   background: white;
-  border-radius: 6px;
+  border-radius: 8px;
   border-left: 4px solid #007bff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.user-info h3, .actions h3, .resultado h3 {
+.user-info h3, .permissions-info h3, .stores-info h3, .actions h3, .resultado h3 {
   margin-top: 0;
+  margin-bottom: 15px;
   color: #495057;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Grid de informações do usuário */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.info-item {
+  background: #f8f9fa;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border-left: 3px solid #007bff;
+}
+
+.info-item strong {
+  color: #495057;
+  margin-right: 8px;
+}
+
+/* Status indicators */
+.status-success {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.status-error {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+/* Permissões */
+.permissions-info {
+  border-left-color: #ffc107;
+}
+
+.permissions-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.permission-tag {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid #bbdefb;
+}
+
+.permission-tag.permission-required {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #a5d6a7;
+  font-weight: 600;
+}
+
+/* Lojas */
+.stores-info {
+  border-left-color: #28a745;
+}
+
+.stores-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 15px;
+}
+
+.store-card {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 15px;
+  transition: all 0.3s ease;
+}
+
+.store-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+.store-card.store-principal {
+  border-left: 4px solid #ffc107;
+  background: #fffbf0;
+}
+
+.store-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.store-header h4 {
+  margin: 0;
+  color: #495057;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.store-badges {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-primary {
+  background: #ffc107;
+  color: #212529;
+}
+
+.badge-success {
+  background: #28a745;
+  color: white;
+}
+
+.badge-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.store-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.detail-item {
+  background: white;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.detail-item strong {
+  color: #6c757d;
+  font-size: 0.8rem;
+  display: block;
+  margin-bottom: 2px;
+}
+
+/* Sem dados */
+.no-data {
+  text-align: center;
+  color: #6c757d;
+  font-style: italic;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
 }
 
 .action-buttons {

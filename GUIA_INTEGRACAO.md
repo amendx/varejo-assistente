@@ -11,7 +11,9 @@
     id: "123",
     nome: "João Silva",
     email: "joao@vfx.com",
-    funcao: "Vendedor"
+    funcao: "Gerente de Vendas",
+    ambiente: "DESENVOLVIMENTO", // ou "PRODUCAO"
+    tipoCliente: "MERCADO" // tipo do cliente VFX
   },
   
   // 🔑 PERMISSÕES (obrigatório)
@@ -20,12 +22,25 @@
     "outras_permissoes..."
   ],
   
-  // 🏪 LOJAS ATIVAS (obrigatório)
+  // 🏪 LOJAS ATIVAS (obrigatório - estrutura detalhada)
   userStores: [
     {
-      id: "001", 
-      codigo: "001", 
-      nome: "Loja Centro"
+      id: 2906,
+      ativo: "S", // "S" = ativo, "N" = inativo
+      principal: false, // true se for loja principal do usuário
+      loja: {
+        id: 2,
+        sigla: "LJ02",
+        ativo: true,
+        tefAtivo: false,
+        habilitaSegundaViaTEF: false,
+        spedSuprimeZerosCodProduto: false,
+        enviaProcodMaiorQueDefinido: false,
+        numeroDoDocumento: "46885939000181", // CNPJ
+        fantasia: "BLAUS (PONTA DO FAROL)",
+        uf: "MA",
+        replicaICMSCST: false
+      }
     }
   ],
   
