@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VFX Host - Teste Iframe MFE</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #007bff; }
+        .status { padding: 8px 16px; border-radius: 20px; font-weight: 500; font-size: 14px; }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        .iframe-container { border: 2px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+        .iframe-container iframe { width: 100%; height: 600px; border: none; }
+        .debug-panel { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-top: 20px; }
+        .debug-panel h4 { margin-top: 0; color: #495057; }
+        .log-entry { background: #2d3748; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; margin-bottom: 5px; white-space: pre-wrap; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; transition: background 0.3s; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; }
+        .permission-highlight { background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px; }
+        .permission-highlight h4 { margin-top: 0; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 VFX Host - Teste MFE Assistente</h1>
+            <div class="status" id="connectionStatus">⏳ Aguardando conexão...</div>
+        </div>
+
+        <div class="permission-highlight">
+            <h4>🔑 Permissão Obrigatória</h4>
+            <p>O usuário DEVE ter a permissão <code><strong>PERM_ASSISTENTE_COMPRA_ACESSO</strong></code> no array de permissões para acessar o MFE.</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="sendTestData()">📤 Enviar Dados de Teste</button>
+            <button class="btn btn-secondary" onclick="clearLogs()">🗑️ Limpar Logs</button>
+            <button class="btn btn-secondary" onclick="reloadIframe()">🔄 Recarregar MFE</button>
+        </div>
+
+        <div class="iframe-container">
+            <iframe id="mfeIframe" src="https://varejo-assistente.vercel.app/iframe.html" onload="onIframeLoad()"></iframe>
+        </div>
+
+        <div class="debug-panel">
+            <h4>📋 Logs de Comunicação</h4>
+            <div id="debugLogs"></div>
+        </div>
+    </div>
+
+    <script>
+        let mfeLoaded = false;
+        let messageCount = 0;
+
+        const vfxMockData = {
+            userData: {
+                id: 'usr_123456',
+                nome: 'João da Silva',
+                email: 'joao.silva@vfx.com',
+                funcao: 'Gerente de Vendas'
+            },
+            userPermissions: [
+                'PERM_ASSISTENTE_COMPRA_ACESSO', // ← PERMISSÃO OBRIGATÓRIA
+                'vendas_visualizar',
+                'vendas_criar',
+                'relatorios_visualizar',
+                'produtos_visualizar'
+            ],
+            userStores: [
+                { 
+                    id: 'store_001', 
+                    codigo: '001',
+                    nome: 'VFX Loja Centro'
+                }
+            ],
+            isLoggedIn: true,
+            themeData: {
+                name: 'VFX Default Theme',
+                mode: 'light'
+            }
+        };
+
+        function addLog(message, type = 'info') {
+            const logsContainer = document.getElementById('debugLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            const icon = type === 'sent' ? '📤' : type === 'received' ? '📥' : type === 'error' ? '❌' : '📋';
+            logEntry.textContent = `[${timestamp}] ${icon} ${message}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.textContent = '✅ MFE Conectado';
+                status.className = 'status connected';
+            } else {
+                status.textContent = '❌ MFE Desconectado';
+                status.className = 'status disconnected';
+            }
+        }
+
+        function onIframeLoad() {
+            addLog('VFX: Iframe do MFE carregado com sucesso');
+            mfeLoaded = true;
+            setTimeout(() => {
+                addLog('VFX: MFE deve estar pronto para comunicação');
+                updateConnectionStatus(true);
+            }, 2000);
+        }
+
+        function sendTestData() {
+            if (!mfeLoaded) {
+                addLog('VFX: MFE ainda não carregou completamente', 'error');
+                return;
+            }
+
+            const iframe = document.getElementById('mfeIframe');
+            
+            try {
+                addLog('VFX: Enviando dados de teste para MFE...', 'sent');
+                
+                iframe.contentWindow.postMessage({
+                    type: 'VFX_HOST_EVENT',
+                    event: 'host:data-response',
+                    data: vfxMockData,
+                    timestamp: Date.now(),
+                    messageId: `msg_${++messageCount}`
+                }, 'https://varejo-assistente.vercel.app');
+                
+                addLog(`VFX: Dados enviados (ID: msg_${messageCount})`, 'sent');
+                addLog(`Permissões: ${vfxMockData.userPermissions.join(', ')}`, 'sent');
+                
+            } catch (error) {
+                addLog(`VFX: Erro ao enviar dados - ${error.message}`, 'error');
+            }
+        }
+
+        function clearLogs() {
+            document.getElementById('debugLogs').innerHTML = '';
+            addLog('VFX: Logs limpos');
+        }
+
+        function reloadIframe() {
+            const iframe = document.getElementById('mfeIframe');
+            iframe.src = iframe.src;
+            mfeLoaded = false;
+            updateConnectionStatus(false);
+            addLog('VFX: Recarregando MFE...');
+        }
+
+        window.addEventListener('message', function(event) {
+            if (!event.origin.includes('varejo-assistente')) {
+                addLog(`VFX: Origem não autorizada bloqueada - ${event.origin}`, 'error');
+                return;
+            }
+
+            addLog(`VFX: Mensagem recebida do MFE`, 'received');
+            
+            if (event.data.type === 'VFX_MFE_EVENT') {
+                const { event: eventName, data } = event.data;
+                
+                switch (eventName) {
+                    case 'mfe:request-data':
+                        addLog('VFX: MFE solicitou dados - enviando automaticamente...', 'received');
+                        setTimeout(() => sendTestData(), 500);
+                        break;
+                        
+                    default:
+                        addLog(`VFX: Evento recebido - ${eventName}`, 'received');
+                }
+            }
+        });
+
+        addLog('VFX: Sistema de comunicação PostMessage inicializado');
+        addLog('VFX: Aguardando carregamento do MFE...');
+        addLog('🔑 Importante: O MFE só vai liberar acesso se o usuário tiver a permissão PERM_ASSISTENTE_COMPRA_ACESSO');
+    </script>
+</body>
+</html>

@@ -164,23 +164,8 @@ const unifiedEventBus = computed(() => {
 const hasAssistentPermissions = computed(() => {
   const permissions = unifiedUserPermissions.value || unifiedUserData.value?.permissoes || []
   
-  // Verificar permissões específicas do assistente de compras
-  const requiredPermissions = [
-    'assistente.read',
-    'assistente.compras',
-    'vendas.read',
-    'produtos.read'
-  ]
-  
-  // Usuário precisa ter pelo menos uma das permissões necessárias
-  return requiredPermissions.some(perm => 
-    permissions.some(userPerm => 
-      userPerm === perm || 
-      userPerm.startsWith(perm.split('.')[0]) || 
-      userPerm === 'admin' || 
-      userPerm === 'super_admin'
-    )
-  )
+  // Verificar se tem a permissão específica do assistente de compras
+  return permissions.includes('PERM_ASSISTENTE_COMPRA_ACESSO')
 })
 
 // Computed para validar lojas ativas
@@ -191,73 +176,75 @@ const hasActiveStores = computed(() => {
 
 // Verificação de acesso autorizado
 const isAuthorizedAccess = computed(() => {
-  // Em desenvolvimento, sempre permitir acesso se tiver dados mock
-  if (isDevelopment.value && unifiedUserData.value?.nome) {
+  // IFRAME MODE: Se estiver em iframe E tiver recebido dados VFX, liberar acesso
+  if (isInIframe.value && unifiedUserData.value?.nome) {
+    console.log('✅ Acesso autorizado via iframe com dados VFX')
     return true
   }
   
-  // Verificações para produção:
-  // 1. Usuário deve estar logado
-  if (!unifiedIsLoggedIn.value && !unifiedUserData.value?.nome) {
-    console.warn('❌ Usuário não está logado')
-    return false
+  // MODULE FEDERATION MODE: Verificações tradicionais para Module Federation
+  if (!isInIframe.value) {
+    // Em desenvolvimento, sempre permitir acesso se tiver dados mock
+    if (isDevelopment.value && unifiedUserData.value?.nome) {
+      return true
+    }
+    
+    // Verificações para produção:
+    // 1. Usuário deve estar logado
+    if (!unifiedIsLoggedIn.value && !unifiedUserData.value?.nome) {
+      console.warn('❌ Usuário não está logado')
+      return false
+    }
+    
+    // 2. Usuário deve ter permissões do assistente  
+    if (!hasAssistentPermissions.value) {
+      console.warn('❌ Usuário não tem permissão PERM_ASSISTENTE_COMPRA_ACESSO')
+      return false
+    }
+    
+    // 3. Usuário deve ter lojas ativas
+    if (!hasActiveStores.value) {
+      console.warn('❌ Usuário não tem lojas ativas')
+      return false
+    }
+    
+    // 4. Verificar integração Module Federation
+    const hasEventBus = !!unifiedEventBus.value && unifiedEventBus.value.emit
+    const hasVFXData = !!(unifiedUserData.value?.nome || unifiedThemeData.value)
+    const hasVFXFlag = !!(window.__POWERED_BY_VFX__ || window.vfxMFEEventBus)
+    
+    // Verificação segura do document.referrer
+    let hasValidReferer = false
+    try {
+      const referrer = typeof document !== 'undefined' ? document.referrer || '' : ''
+      hasValidReferer = referrer && (
+        referrer.includes('localhost:3000') || 
+        referrer.includes('varejofacil.com') ||
+        referrer.includes('vfx') ||
+        referrer.includes('127.0.0.1:3000')
+      )
+    } catch (error) {
+      console.warn('Erro ao acessar document.referrer:', error)
+      hasValidReferer = false
+    }
+    
+    // Pelo menos uma das validações técnicas deve passar (host integration)
+    const isAuthorized = hasEventBus || hasVFXData || hasVFXFlag || hasValidReferer
+    
+    console.log('🔍 Verificação Module Federation:', {
+      hasEventBus,
+      hasVFXData,
+      hasVFXFlag, 
+      hasValidReferer,
+      finalAuthorization: isAuthorized
+    })
+    
+    return isAuthorized
   }
   
-  // 2. Usuário deve ter permissões do assistente  
-  if (!hasAssistentPermissions.value) {
-    console.warn('❌ Usuário não tem permissões para o assistente de compras')
-    return false
-  }
-  
-  // 3. Usuário deve ter lojas ativas
-  if (!hasActiveStores.value) {
-    console.warn('❌ Usuário não tem lojas ativas')
-    return false
-  }
-  
-  // 4. Verificar integração (Module Federation ou iframe)
-  const hasEventBus = !!unifiedEventBus.value && unifiedEventBus.value.emit
-  const hasVFXData = !!(unifiedUserData.value?.nome || unifiedThemeData.value)
-  const hasVFXFlag = !!(window.__POWERED_BY_VFX__ || window.vfxMFEEventBus)
-  const isIframeMode = isInIframe.value
-  
-  // 5. Verificação segura do document.referrer
-  let hasValidReferer = false
-  try {
-    const referrer = typeof document !== 'undefined' ? document.referrer || '' : ''
-    hasValidReferer = referrer && (
-      referrer.includes('localhost:3000') || 
-      referrer.includes('varejofacil.com') ||
-      referrer.includes('vfx') ||
-      referrer.includes('127.0.0.1:3000')
-    )
-  } catch (error) {
-    console.warn('Erro ao acessar document.referrer:', error)
-    hasValidReferer = false
-  }
-  
-  // Pelo menos uma das validações técnicas deve passar (host integration)
-  const isAuthorized = hasEventBus || hasVFXData || hasVFXFlag || hasValidReferer || isIframeMode
-  
-  console.log('🔍 Verificação de Acesso Completa:', {
-    executionMode: executionMode.value,
-    isIframe: isIframeMode,
-    isDevelopment: isDevelopment.value,
-    isLoggedIn: unifiedIsLoggedIn.value,
-    hasUserData: !!unifiedUserData.value?.nome,
-    hasPermissions: hasAssistentPermissions.value,
-    hasActiveStores: hasActiveStores.value,
-    hasEventBus,
-    hasVFXData,
-    hasVFXFlag, 
-    hasValidReferer,
-    userPermissions: unifiedUserPermissions.value || [],
-    userStores: unifiedUserStores.value?.length || 0,
-    referer: typeof document !== 'undefined' ? document.referrer : 'N/A',
-    finalAuthorization: isAuthorized
-  })
-  
-  return isAuthorized
+  // IFRAME SEM DADOS: Mostrar página de acesso restrito
+  console.log('❌ Iframe sem dados VFX - mostrando página de acesso restrito')
+  return false
 })
 
 // Computed para acessar referrer de forma segura
